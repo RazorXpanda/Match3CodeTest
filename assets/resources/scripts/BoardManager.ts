@@ -1,0 +1,254 @@
+// Learn TypeScript:
+//  - https://docs.cocos.com/creator/manual/en/scripting/typescript.html
+// Learn Attribute:
+//  - https://docs.cocos.com/creator/manual/en/scripting/reference/attributes.html
+// Learn life-cycle callbacks:
+//  - https://docs.cocos.com/creator/manual/en/scripting/life-cycle-callbacks.html
+
+import Tile from "./Tile";
+
+const {ccclass, property} = cc._decorator;
+
+@ccclass
+export default class BoardManager extends cc.Component {
+
+    @property(cc.Node)
+    gridParent: cc.Node = null;
+
+    @property([cc.SpriteFrame])
+    sprites: Array<cc.SpriteFrame> = [];
+
+    @property(cc.Prefab)
+    tilePrefab: cc.Prefab = null;
+
+    @property (Number)
+    gridDimension: number = null;
+
+    @property (Number)
+    distance: number = null;
+
+    static dist: number = null;
+
+    private static grid: cc.Node[][] = [];
+
+    // Singleton (I know its bad but i dont have time uwu)
+    private static instance: BoardManager;
+
+    public static getInstance(): BoardManager {
+        if (!BoardManager.instance) {
+            BoardManager.instance = new BoardManager();
+        }
+
+        return BoardManager.instance;
+    }
+    
+    start()
+    {
+        BoardManager.dist = this.distance;
+    }
+
+    onLoad()
+    {
+        BoardManager.grid = [...Array(this.gridDimension)].map(e => Array(this.gridDimension));
+        this.InitGrid();
+    }
+
+    protected InitGrid()
+    {
+        const lol =  new cc.Vec3((this.gridDimension * this.distance / 2.0), this.gridDimension * this.distance / 2.0, 0);
+        let positionOffset = this.node.position.sub(lol);
+
+        for (let row = 0; row < this.gridDimension; row++)
+        {
+            for (let col = 0; col < this.gridDimension; col++)
+            {
+                let possibleSprites = [];
+                if (possibleSprites != null && possibleSprites.length < this.sprites.length)
+                {
+                    possibleSprites = this.sprites.slice(0);
+                }
+                //Choose what sprite to use for this cell
+                let left1 = this.GetSpriteAt(col - 1, row); //2
+                let left2 = this.GetSpriteAt(col - 2, row);
+                //if (left1 != null) cc.log("Sprite at left 1 is " + left1.name)
+                //if (left2 != null) cc.log("Sprite at left 2 is " + left2.name)
+                if (left2 != null && left1 == left2) // 3
+                {
+                    const index = possibleSprites.indexOf(left1);
+                    //possibleSprites.splice(index); // 4
+                    if (index > -1)
+                    {
+                        possibleSprites.splice
+                        let removed = possibleSprites.splice(index, 1);
+                    }
+                }
+
+                let down1 = this.GetSpriteAt(col, row - 1); // 5
+                let down2 = this.GetSpriteAt(col, row - 2);
+                //if (down1 != null) cc.log("Sprite at down 1 is " + down1.name)
+                //if (down2 != null) cc.log("Sprite at down 2 is " + down2.name)
+                if (down2 != null && down1 == down2)
+                {
+                    const index = possibleSprites.indexOf(down1);
+                    if (index > -1)
+                    {
+                        let removed = possibleSprites.splice(index, 1);
+                    }
+                }  
+
+                let newTile = cc.instantiate(this.tilePrefab);
+
+                // Get sprite component from tile prefab
+                let tileSprite = newTile.getComponent(cc.Sprite);
+                tileSprite.spriteFrame = possibleSprites[this.getRandomInt(0, possibleSprites.length)];
+                tileSprite.node.addComponent(Tile);
+
+                newTile.setParent(this.gridParent);
+                newTile.position = new cc.Vec3(col * this.distance, row * this.distance, 0).add(positionOffset);
+
+                BoardManager.grid[col][row] = newTile;    
+            }
+        }
+    }
+
+    private GetSpriteAt(column: number, row: number)
+    {
+        if (column < 0 || column >= this.gridDimension || row < 0 || row >= this.gridDimension)
+            return null;
+        let tile = BoardManager.grid[column][row];
+        let renderer = tile.getComponent(cc.Sprite).spriteFrame;
+        return renderer;
+    }
+
+    private GetSpriteObjectAt(column: number, row: number)
+    {
+        if (column < 0 || column >= this.gridDimension || row < 0 || row >= this.gridDimension)
+            return null;
+        let tile = BoardManager.grid[column][row];
+        let renderer = tile.getComponent(cc.Sprite);
+        return renderer;
+    }
+
+    private CheckMatch(): boolean
+    {
+        let matchedTiles: Array<cc.Sprite> = [];
+        for (let row = 0; row < this.gridDimension; row++)
+        {
+            for (let column = 0; column < this.gridDimension; column++)
+            {
+                let current: cc.Sprite = this.GetSpriteObjectAt(column, row);
+
+                let horizontalMatches: Array<cc.Sprite> = this.FindColumnMatchForTile(column, row, current); // 4
+                cc.log(horizontalMatches);
+                if (horizontalMatches.length >= 2)
+                {
+                    matchedTiles.concat(horizontalMatches);
+                    matchedTiles.push(current); // 5
+                }
+
+                let verticalMatches: Array<cc.Sprite> = this.FindRowMatchForTile(column, row, current); // 6
+                if (verticalMatches.length >= 2)
+                {
+                    matchedTiles.concat(verticalMatches);
+                    matchedTiles.push(current);
+                }
+            }
+        }
+
+        matchedTiles.forEach(function (item)
+        {
+            item = null;
+        })
+
+        return matchedTiles.length > 0;
+    }
+
+    private FillHoles(): void
+    {
+        for (let column = 0; column < this.gridDimension; column++)
+        {
+            for (let row = 0; row < this.gridDimension; row++) // 1
+            {
+                while (this.GetSpriteObjectAt(column, row) == null) // 2
+                {
+                    for (let filler = row; filler < this.gridDimension - 1; filler++) // 3
+                    {
+                        let current = this.GetSpriteObjectAt(column, filler); // 4
+                        let next = this.GetSpriteObjectAt(column, filler + 1);
+                        current = next;
+                    }
+                    let last = this.GetSpriteObjectAt(column, this.gridDimension - 1);
+                    //last = this.sprites[this.getRandomInt(0, this.sprites.length)]; // 5
+                }
+            }
+        }
+    }
+
+    private FindColumnMatchForTile(col: number, row: number, sprite: cc.Sprite)
+    {
+        cc.log("Called");
+        let result: Array<cc.Sprite> = [];
+        for (let i = col + 1; i < this.gridDimension; i++)
+        {
+            let nextColumn = this.GetSpriteObjectAt(i, row);
+            if (nextColumn != sprite)
+            {
+                break;
+            }
+            result.push(nextColumn);
+        }
+        cc.log(result);
+        return result;
+    }
+
+    private FindRowMatchForTile(col: number, row: number, sprite: cc.Sprite)
+    {
+        let result: Array<cc.Sprite> = [];
+        for (let i = row + 1; i < this.gridDimension; i++)
+        {
+            let nextRow = this.GetSpriteObjectAt(col, i);
+            if (nextRow != sprite)
+            {
+                break;
+            }
+            result.push(nextRow);
+        }
+        return result;
+    }
+    
+    private getRandomInt(min, max) {
+        min = Math.ceil(min);
+        max = Math.floor(max);
+        return Math.floor(Math.random() * (max - min) + min); //The maximum is exclusive and the minimum is inclusive
+    }
+
+    public SwapTiles(tile1Position: cc.Vec3, tile2Position: cc.Vec3)
+    {
+        let tile1 = BoardManager.grid[(tile1Position.x + 300)/100][(tile1Position.y + 300)/100];
+        let sprite1 = tile1.getComponent(cc.Sprite);
+
+        let tile2 = BoardManager.grid[(tile2Position.x+300)/100][(tile2Position.y+300)/100];
+        let sprite2 = tile2.getComponent(cc.Sprite);
+
+        let tempSprite = sprite1.spriteFrame;
+        sprite1.spriteFrame = sprite2.spriteFrame;
+        sprite2.spriteFrame = tempSprite;
+
+        let changesOccurs: boolean = this.CheckMatch();
+        if(!changesOccurs)
+        {
+            let tempSprite = sprite1.spriteFrame;
+            sprite1.spriteFrame = sprite2.spriteFrame;
+            sprite2.spriteFrame = tempSprite;
+        }
+        else
+        {
+            do
+            {
+                this.FillHoles();
+            }
+            while (this.CheckMatch());
+        }
+    
+    }
+}
