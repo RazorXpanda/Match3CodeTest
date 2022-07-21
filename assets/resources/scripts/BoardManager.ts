@@ -27,29 +27,39 @@ export default class BoardManager extends cc.Component {
     @property (Number)
     distance: number = null;
 
-    static dist: number = null;
+    @property (cc.Label)
+    scoreLabel: cc.Label;
 
-    private static grid: cc.Node[][] = [];
+    private grid: cc.Node[][] = [];
+
+    private _score: number = 0;
+
+    public get score() : number {
+        return this._score;
+    }
+
+    public set score(value: number)
+    {
+        this._score = value;
+        this.scoreLabel.string = this._score.toString();
+    }
 
     // Singleton (I know its bad but i dont have time uwu)
     private static instance: BoardManager;
 
-    public static getInstance(): BoardManager {
-        if (!BoardManager.instance) {
-            BoardManager.instance = new BoardManager();
-        }
-
-        return BoardManager.instance;
+    public static get Instance(){
+        return this.instance
     }
     
     start()
     {
-        BoardManager.dist = this.distance;
+        this.score = 0;
     }
 
     onLoad()
     {
-        BoardManager.grid = [...Array(this.gridDimension)].map(e => Array(this.gridDimension));
+        BoardManager.instance = this;
+        this.grid = [...Array(this.gridDimension)].map(e => Array(this.gridDimension));
         this.InitGrid();
     }
 
@@ -106,7 +116,7 @@ export default class BoardManager extends cc.Component {
                 newTile.setParent(this.gridParent);
                 newTile.position = new cc.Vec3(col * this.distance, row * this.distance, 0).add(positionOffset);
 
-                BoardManager.grid[col][row] = newTile;    
+                this.grid[col][row] = newTile;    
             }
         }
     }
@@ -115,49 +125,58 @@ export default class BoardManager extends cc.Component {
     {
         if (column < 0 || column >= this.gridDimension || row < 0 || row >= this.gridDimension)
             return null;
-        let tile = BoardManager.grid[column][row];
-        let renderer = tile.getComponent(cc.Sprite).spriteFrame;
-        return renderer;
+        let tile = this.grid[column][row];
+        let spriteframe = tile.getComponent(cc.Sprite).spriteFrame;
+        return spriteframe;
     }
 
     private GetSpriteObjectAt(column: number, row: number)
     {
         if (column < 0 || column >= this.gridDimension || row < 0 || row >= this.gridDimension)
             return null;
-        let tile = BoardManager.grid[column][row];
-        let renderer = tile.getComponent(cc.Sprite);
-        return renderer;
+        let tile = this.grid[column][row];
+        let sprite = tile.getComponent(cc.Sprite);
+        return sprite;
     }
 
     private CheckMatch(): boolean
     {
         let matchedTiles: Array<cc.Sprite> = [];
+        let tempArray: Array<cc.Sprite> = [];
         for (let row = 0; row < this.gridDimension; row++)
         {
             for (let column = 0; column < this.gridDimension; column++)
             {
                 let current: cc.Sprite = this.GetSpriteObjectAt(column, row);
 
-                let horizontalMatches: Array<cc.Sprite> = this.FindColumnMatchForTile(column, row, current); // 4
-                cc.log(horizontalMatches);
+                let horizontalMatches: Array<cc.Sprite> = this.FindColumnMatchForTile(column, row, current.spriteFrame); // 4
+                //cc.log(horizontalMatches);
                 if (horizontalMatches.length >= 2)
                 {
-                    matchedTiles.concat(horizontalMatches);
-                    matchedTiles.push(current); // 5
+                    tempArray = matchedTiles.concat(horizontalMatches);
+                    tempArray.push(current);
+                    matchedTiles = tempArray;
+                    this.score += 1;
+                    tempArray = [];
                 }
 
-                let verticalMatches: Array<cc.Sprite> = this.FindRowMatchForTile(column, row, current); // 6
+                let verticalMatches: Array<cc.Sprite> = this.FindRowMatchForTile(column, row, current.spriteFrame); // 6
                 if (verticalMatches.length >= 2)
                 {
-                    matchedTiles.concat(verticalMatches);
-                    matchedTiles.push(current);
+                    tempArray = matchedTiles.concat(verticalMatches);
+                    tempArray.push(current);
+                    matchedTiles = tempArray;
+                    this.score += 1;
+                    tempArray = [];
                 }
             }
         }
 
+        cc.log(matchedTiles);
+
         matchedTiles.forEach(function (item)
         {
-            item = null;
+            item.spriteFrame = null;
         })
 
         return matchedTiles.length > 0;
@@ -167,47 +186,49 @@ export default class BoardManager extends cc.Component {
     {
         for (let column = 0; column < this.gridDimension; column++)
         {
-            for (let row = 0; row < this.gridDimension; row++) // 1
+            for (let row = 0; row < this.gridDimension; row++)
             {
-                while (this.GetSpriteObjectAt(column, row) == null) // 2
+                while (this.GetSpriteObjectAt(column, row).spriteFrame == null)
                 {
-                    for (let filler = row; filler < this.gridDimension - 1; filler++) // 3
+                    cc.log("CALLED");
+                    cc.log(row);
+                    for (let filler = row; filler < this.gridDimension - 1; filler++)
                     {
-                        let current = this.GetSpriteObjectAt(column, filler); // 4
-                        let next = this.GetSpriteObjectAt(column, filler + 1);
-                        current = next;
+                        console.log(column)
+                        console.log(filler)
+                        let current = this.GetSpriteObjectAt(column, filler).spriteFrame;
+                        let next = this.GetSpriteObjectAt(column, filler + 1).spriteFrame;
+                        this.grid[column][filler].getComponent(cc.Sprite).spriteFrame = next;
                     }
-                    let last = this.GetSpriteObjectAt(column, this.gridDimension - 1);
-                    //last = this.sprites[this.getRandomInt(0, this.sprites.length)]; // 5
+                    let last = this.GetSpriteObjectAt(column, this.gridDimension - 1).spriteFrame;
+                    this.grid[column][this.gridDimension-1].getComponent(cc.Sprite).spriteFrame = this.sprites[this.getRandomInt(0, this.sprites.length)]; // 5
                 }
             }
         }
     }
 
-    private FindColumnMatchForTile(col: number, row: number, sprite: cc.Sprite)
+    private FindColumnMatchForTile(col: number, row: number, sprite: cc.SpriteFrame)
     {
-        cc.log("Called");
         let result: Array<cc.Sprite> = [];
         for (let i = col + 1; i < this.gridDimension; i++)
         {
             let nextColumn = this.GetSpriteObjectAt(i, row);
-            if (nextColumn != sprite)
+            if (nextColumn.spriteFrame.name != sprite.name)
             {
                 break;
             }
             result.push(nextColumn);
         }
-        cc.log(result);
         return result;
     }
 
-    private FindRowMatchForTile(col: number, row: number, sprite: cc.Sprite)
+    private FindRowMatchForTile(col: number, row: number, sprite: cc.SpriteFrame)
     {
         let result: Array<cc.Sprite> = [];
         for (let i = row + 1; i < this.gridDimension; i++)
         {
             let nextRow = this.GetSpriteObjectAt(col, i);
-            if (nextRow != sprite)
+            if (nextRow.spriteFrame.name != sprite.name)
             {
                 break;
             }
@@ -224,16 +245,17 @@ export default class BoardManager extends cc.Component {
 
     public SwapTiles(tile1Position: cc.Vec3, tile2Position: cc.Vec3)
     {
-        let tile1 = BoardManager.grid[(tile1Position.x + 300)/100][(tile1Position.y + 300)/100];
+        let tile1 = this.grid[(tile1Position.x + 300)/100][(tile1Position.y + 300)/100];
         let sprite1 = tile1.getComponent(cc.Sprite);
 
-        let tile2 = BoardManager.grid[(tile2Position.x+300)/100][(tile2Position.y+300)/100];
+        let tile2 = this.grid[(tile2Position.x+300)/100][(tile2Position.y+300)/100];
         let sprite2 = tile2.getComponent(cc.Sprite);
 
         let tempSprite = sprite1.spriteFrame;
         sprite1.spriteFrame = sprite2.spriteFrame;
         sprite2.spriteFrame = tempSprite;
 
+        
         let changesOccurs: boolean = this.CheckMatch();
         if(!changesOccurs)
         {
@@ -243,12 +265,26 @@ export default class BoardManager extends cc.Component {
         }
         else
         {
+            this.FillHoles();
             do
             {
                 this.FillHoles();
             }
             while (this.CheckMatch());
         }
-    
+    }
+
+    private ResetBoard():void
+    {
+        for (let row = 0; row < this.gridDimension; row++)
+        {
+            for (let column = 0; column < this.gridDimension; column++)
+            {
+                this.grid[row][column].getComponent(cc.Sprite).spriteFrame = null;
+                this.grid[row][column] = null;
+            }
+        }
+        this.score = 0;
+        this.InitGrid();
     }
 }

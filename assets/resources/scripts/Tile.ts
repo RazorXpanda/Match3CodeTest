@@ -39,7 +39,7 @@ export default class Tile extends cc.Component {
 
     private _touchTile(event?: cc.Event.EventTouch)
     {
-        //console.log(this.node.position)
+        cc.log(BoardManager.Instance.distance);
         //not used for now
         const touchpoint = new cc.Vec2(event.getLocationX(), event.getLocationY());
 
@@ -47,9 +47,9 @@ export default class Tile extends cc.Component {
         {
             if (Tile.selected == this) return;
             Tile.selected.Unselect();
-            if (this.GetDistance(Tile.selected.node.position, this.node.position, BoardManager.dist))
+            if (this.GetDistance(Tile.selected.node.position, this.node.position, BoardManager.Instance.distance))
             {
-                BoardManager.getInstance().SwapTiles(this.node.position, Tile.selected.node.position);
+                BoardManager.Instance.SwapTiles(this.node.position, Tile.selected.node.position);
                 Tile.selected = null;
             }
             else
