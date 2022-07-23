@@ -28,44 +28,63 @@ export default class Tile extends cc.Component {
     {
         //127.5, 127.5, 127.5 is color gray
         this.sprite.color = new cc.Color(127.5, 127.5, 127.5);
+        //cc.log("Tile selected")
     }
 
     public Unselect()
     {
         //255, 255, 255 is color white
         this.sprite.color = new cc.Color(255,255,255);
+        //cc.log("Tile Deselected")
     }
 
     private GetDistance(tile1Pos: cc.Vec3, tile2Pos: cc.Vec3, tolerance: Number)
     {
         return Math.abs((tile1Pos.x - tile2Pos.x) + (tile1Pos.y - tile2Pos.y)) == tolerance ? true : false;
-    }    
+    }
+
+    private GetGridDistance(num1: number, num2: number)
+    {
+        return Math.abs(num1 - num2)
+    }   
 
     private _touchTile(event?: cc.Event.EventTouch)
     {
         //not used for now
         const touchpoint = new cc.Vec2(event.getLocationX(), event.getLocationY());
-
-        if (Tile.selected != null)
+        if (BoardManager.Instance.state == 0)
         {
-            if (Tile.selected == this) return;
-            Tile.selected.Unselect();
-            if (this.GetDistance(Tile.selected.node.position, this.node.position, BoardManager.Instance.distance))
+            if (Tile.selected != null)
             {
-                BoardManager.Instance.SwapTiles(this.node.position, Tile.selected.node.position);
-                Tile.selected = null;
+                if (Tile.selected == this) return;
+                Tile.selected.Unselect();
+
+                let xSelected = (Tile.selected.node.getPosition().x / 100) + 3
+                let ySelected = (Tile.selected.node.getPosition().y / 100) + 3
+
+                let xThis = (this.node.getPosition().x / 100) + 3
+                let yThis = (this.node.getPosition().y / 100) + 3
+
+                let xRange = this.GetGridDistance(xSelected, xThis);
+                let yRange = this.GetGridDistance(ySelected, yThis)
+
+                if ((xRange == 0 && yRange == 1 || xRange == 1 && yRange == 0))
+                {
+                    BoardManager.Instance.SwapTiles(xSelected, ySelected, xThis, yThis); 
+                    Tile.selected = null;
+                }
+
+                else
+                {
+                    Tile.selected = this;
+                    this.Select();
+                }
             }
-            else
+            else 
             {
                 Tile.selected = this;
                 this.Select();
             }
-        }
-        else 
-        {
-            Tile.selected = this;
-            this.Select();
-        }
-            
-        }
+        }      
+    }
 }

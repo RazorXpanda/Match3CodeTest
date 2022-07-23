@@ -30,9 +30,13 @@ export default class BoardManager extends cc.Component {
     @property (cc.Label)
     scoreLabel: cc.Label;
 
-    private grid: cc.Node[][] = [];
+    public grid: cc.Node[][] = [];
 
-    private _score: number = 0;
+    private _score: number = 0;    
+
+    // 0 =  idle
+    // 1 = moving
+    public state: number = 0;
 
     public get score() : number {
         return this._score;
@@ -43,6 +47,8 @@ export default class BoardManager extends cc.Component {
         this._score = value;
         this.scoreLabel.string = this._score.toString();
     }
+    
+
 
     // Singleton (I know its bad but i dont have time uwu)
     private static instance: BoardManager;
@@ -58,9 +64,29 @@ export default class BoardManager extends cc.Component {
 
     onLoad()
     {
+        cc.systemEvent.on(cc.SystemEvent.EventType.KEY_DOWN, this.onKeyDown, this);
         BoardManager.instance = this;
         this.grid = [...Array(this.gridDimension)].map(e => Array(this.gridDimension));
         this.InitGrid();
+    }
+
+    onKeyDown(event) 
+    {
+        switch(event.keyCode) {
+            case cc.macro.KEY.e:
+                console.log('Press e key');
+                this.CheatCode();
+                break;
+        }
+    }
+
+    private CheatCode()
+    {
+        this.grid[0][0].getComponent(cc.Sprite).spriteFrame = this.sprites[4]
+        this.grid[0][1].getComponent(cc.Sprite).spriteFrame = this.sprites[4]
+        this.grid[0][2].getComponent(cc.Sprite).spriteFrame = this.sprites[4]
+        this.grid[0][4].getComponent(cc.Sprite).spriteFrame = this.sprites[4]
+        //this.grid[3][2].getComponent(cc.Sprite).spriteFrame = this.sprites[4]
     }
 
     protected InitGrid()
@@ -160,7 +186,6 @@ export default class BoardManager extends cc.Component {
                 let horizontalMatches: Array<cc.Node> = this.FindColumnMatchForTile(column, row, current.getComponent(cc.Sprite).spriteFrame);
                 let horizontalGridValues: number[][] = this.FindColumnMatchForTile_Grid(column, row, current.getComponent(cc.Sprite).spriteFrame);
 
-                //cc.log(horizontalMatches);
                 if (horizontalMatches.length >= 2)
                 {
                     tempArray = matchedTiles.concat(horizontalMatches);
@@ -187,17 +212,15 @@ export default class BoardManager extends cc.Component {
                     gridArray_temp = gridArray.concat(verticalGridValues);
                     gridArray_temp.push([column, row])
                     gridArray = gridArray_temp
-
+                    
                     this.score += 1;
                     tempArray = [];
                     gridArray_temp = [];
                 }
             }
         }
-
-        cc.log(matchedTiles);
-        cc.log(gridArray)
-
+        //cc.log(matchedTiles)
+        
         matchedTiles.forEach(function (item)
         {
             item.destroy();
@@ -226,7 +249,6 @@ export default class BoardManager extends cc.Component {
                 break;
             }
             result.push(nextColumn);
-
         }
         return result;
     }
@@ -243,7 +265,6 @@ export default class BoardManager extends cc.Component {
             }
             arr.push([i,row])
         }
-        cc.log(arr)
         return arr;
     }
 
@@ -274,170 +295,147 @@ export default class BoardManager extends cc.Component {
             }
             arr.push([col,i])
         }
-        cc.log(arr)
         return arr;
     }
 
-    private async FillHoles()
+    private FillHoles()
     {
-        for (let column = 0; column < this.gridDimension; column++)
+        for (let col = 0; col < this.gridDimension; col++)
         {
             for (let row = 0; row < this.gridDimension; row++)
             {
-                if (this.grid[column][row] == null)
+                if (this.grid[col][row] == null)
                 {
-                    cc.log("HELLO")
-                    // position of null element
-                    let rowPosition = (row * 100) - 300
-                    let colPosition = (column * 100) - 300
-                    let nullPosition = new cc.Vec2(colPosition, rowPosition)
-
+                    // STACKING PORTIONS
                     // Detects the next available null object
-                    for (let nextFill = row; nextFill < this.gridDimension; nextFill ++)
+                    for (let nextFill = row + 1; nextFill < this.gridDimension; nextFill ++)
                     {
-                        if (this.grid[column][nextFill] != null)
+                        // Empty Node initialization
+                        this.grid[col][row] = new cc.Node()
+                        this.grid[col][row].position = cc.v3((col - 3) * 100, (row - 3) * 100, 0);
+                        let emptyGridNode = this.grid[col][row]
+
+                        if (this.grid[col][nextFill] != null)
                         {
                             // when next available item is found
                             // grabs that nodes position and move it ot the current position, including modifying the grid
-                            
                             // moves the new object to the first null position
-                            let newObject = this.GetSpriteObjectAt(column, nextFill)
-                            newObject.runAction(cc.moveTo(0.1, nullPosition))
-                            await new Promise(f => setTimeout(f, 0));
+                            let fillInGridNode = this.grid[col][nextFill]
 
-                            // nulls the current position
-                            this.grid[column][nextFill] = null
-                            this.grid[column][row] = newObject
+                            Promise
+                            .all([
+                                this.moveNodeToPosition(fillInGridNode, cc.v3(emptyGridNode.position), 0.1),
+                                this.grid[col][row] = fillInGridNode,
+                                this.grid[col][nextFill] = null
+                            ])
+                            //cc.log(this.grid)
                             break;
+                        }
+
+                        // Last row does not have nodes/sprites
+                        else if (nextFill == this.gridDimension - 1 && this.grid[col][nextFill] == null)
+                        {
+                            let newNode = this.instantiateNode(col)
+
+                            Promise
+                            .all([
+                                this.moveNodeToPosition(newNode, cc.v3(emptyGridNode.position), 0.1),
+                                this.grid[col][row] = newNode,
+                            ])
                         }
                         else
                         {
-                            if (nextFill != this.gridDimension - 1) continue;
-
-                            //Final tile
-                            let newTile = cc.instantiate(this.tilePrefab);
-                            let tileSprite = newTile.getComponent(cc.Sprite);
-                            tileSprite.spriteFrame = this.sprites[this.getRandomInt(0, this.sprites.length)];
-                            tileSprite.node.addComponent(Tile);
-                            newTile.setParent(this.gridParent);
-                            newTile.setPosition((column * 100) - 300, 300)
-
-                            newTile.runAction(cc.moveTo(0.1, nullPosition))
-                            await new Promise(f => setTimeout(f, 0));
-
-                            this.grid[column][row] = newTile
-                            cc.log(this.grid)
+                            continue;
                         }
-                        
+                    }
+                    if (row == 5)
+                    {
+                        // FINAL TILE PORTION
+                        //cc.log(col)
+                        //cc.log(row)
+                        this.grid[col][row] = new cc.Node()
+                        this.grid[col][row].position = cc.v3((col - 3) * 100, (row - 3) * 100, 0);
+                        let emptyGridNode = this.grid[col][row]
 
+                        let newNode = this.instantiateNode(col)
+
+                        Promise
+                        .all([
+                            this.moveNodeToPosition(newNode, cc.v3(emptyGridNode.position), 0.1),
+                            this.grid[col][row] = newNode,
+                        ])
                     }
                 }
             }
         }
-                    /*
-                    let nextObject = this.GetSpriteObjectAt(column, row + 1)
-                    
-
-                    // instantiates a new last tile and set the spriteFrame to it
-                    let last = this.GetSpriteObjectAt(column, this.gridDimension - 1)
-                    let newTile = cc.instantiate(this.tilePrefab);
-                    let tileSprite = newTile.getComponent(cc.Sprite);
-                    tileSprite.spriteFrame = this.sprites[this.getRandomInt(0, this.sprites.length)];
-                    tileSprite.node.addComponent(Tile);
-                    newTile.setParent(this.gridParent);
-    
-                    newTile.position = new cc.Vec3(column * this.distance, this.gridDimension - 1 * this.distance, 0)
-
-                    nextObject.runAction(cc.moveTo(0.1, currentPosition))
-                    this.grid[column][row+1] = null
-                
-                //cc.log(this.GetSpriteObjectAt(column, row))
-                                    /*
-                while (this.GetSpriteObjectAt(column, row) == null)
-                {
-
-                    cc.log("HELLO")
-
-                    cc.log(row);
-                    for (let filler = row; filler < this.gridDimension - 1; filler++)
-                    {
-                        console.log(column)
-                        console.log(filler)
-
-                        //Get the nodes of the current and next empry sprite frame
-                        // this operation needs to modify the sprite frame
-                        let current = this.GetSpriteObjectAt(column, filler)
-
-                        let current = this.GetSpriteObjectAt(column, filler).getComponent(cc.Sprite).spriteFrame;
-                        let next = this.GetSpriteObjectAt(column, filler + 1).getComponent(cc.Sprite).spriteFrame;
-                        this.grid[column][filler].getComponent(cc.Sprite).spriteFrame = next;
-
-                    }
-                    let last = this.GetSpriteObjectAt(column, this.gridDimension - 1).getComponent(cc.Sprite).spriteFrame;
-                    this.grid[column][this.gridDimension-1].getComponent(cc.Sprite).spriteFrame = this.sprites[this.getRandomInt(0, this.sprites.length)]; // 5
-                }
-                */
     }
 
-    public async SwapTiles(tile1Position: cc.Vec3, tile2Position: cc.Vec3)
+    private instantiateNode(col: number)
     {
-        let tile1 = this.grid[(tile1Position.x + 300)/100][(tile1Position.y + 300)/100];
-        let sprite1 = tile1.getComponent(cc.Sprite);
-        let tile2 = this.grid[(tile2Position.x + 300)/100][(tile2Position.y + 300)/100];
-        let sprite2 = tile2.getComponent(cc.Sprite);
-        let temp = this.grid[(tile1Position.x + 300)/100][(tile1Position.y + 300)/100];
-        this.grid[(tile1Position.x + 300)/100][(tile1Position.y + 300)/100] = this.grid[(tile2Position.x + 300)/100][(tile2Position.y + 300)/100];
-        this.grid[(tile2Position.x + 300)/100][(tile2Position.y + 300)/100] = temp;
+        let newNode = cc.instantiate(this.tilePrefab)
+        let nodeSprite = newNode.getComponent(cc.Sprite);
+        nodeSprite.spriteFrame = this.sprites[this.getRandomInt(0, this.sprites.length)];
+        nodeSprite.addComponent(Tile);
+        newNode.setParent(this.gridParent);
+        // row is temporary
+        newNode.setPosition(cc.v3((col - 3) * 100, 300, 0));
+        return newNode
+    }
 
-        // swap nodes and its position from tile 1 and tile 2
-        this.swapNodes(tile1, tile2, tile1Position, tile2Position)
+    public async SwapTiles(xSelected: number, ySelected: number, xThis: number, yThis: number)
+    {
+        this.state = 1;
+        let selectedNode = this.grid[xSelected][ySelected];
+        let thisNode = this.grid[xThis][yThis];
 
-        //let tempSprite = sprite1.spriteFrame;
-        //sprite1.spriteFrame = sprite2.spriteFrame;
-        //sprite2.spriteFrame = tempSprite;
+        Promise
+            .all([
+                this.moveNodeToPosition(selectedNode, cc.v3(thisNode.position), 0.1),
+                this.moveNodeToPosition(thisNode, cc.v3(selectedNode.position), 0.1),
+                this.grid[xThis][yThis] = selectedNode,
+                this.grid[xSelected][ySelected] = thisNode
+            ])
+            //Delays by 1 second
+            .then(await new Promise(f => setTimeout(f, 1000)))
 
-        tile1 = this.grid[(tile1Position.x + 300)/100][(tile1Position.y + 300)/100];
-        tile2 = this.grid[(tile2Position.x + 300)/100][(tile2Position.y + 300)/100];
-
-        // needs this delay so both swapNodes action wont multiply together
-        // also makes it looks cool though
-        await new Promise(f => setTimeout(f, 1000));
-
-        let changesOccurs: boolean = this.CheckMatch();
+        let changesOccurs: boolean = this.CheckMatch();   
         if(!changesOccurs)
         {
-            // swap nodes and its position from tile 2 and tile 1
-            this.swapNodes(tile2, tile1, tile1Position, tile2Position)
-
-            /*
-            let tempSprite = sprite1.spriteFrame;
-            sprite1.spriteFrame = sprite2.spriteFrame;
-            sprite2.spriteFrame = tempSprite;
-            */
+            cc.log("Hello")
+            let selectedNodeSwitched = this.grid[xThis][yThis]
+            let thisNodeSwitched = this.grid[xSelected][ySelected]
+            Promise
+            .all([
+                this.moveNodeToPosition(thisNode, cc.v3(selectedNode.position), 0.1),
+                this.moveNodeToPosition(selectedNode, cc.v3(thisNode.position), 0.1),
+                this.grid[xSelected][ySelected] = selectedNodeSwitched,
+                this.grid[xThis][yThis] = thisNodeSwitched
+            ])
+            .then(await new Promise(f => setTimeout(f, 0)))
+            this.state = 0;
         }
         else
         {
             do
             {
-                this.FillHoles();
+                this.FillHoles();     
+                // delays by half a second, cool effect
+                await new Promise(f => setTimeout(f, 500))
             }
             while (this.CheckMatch());
+            this.state = 0;
         }
     }
 
-    private swapNodes(node1: cc.Node, node2: cc.Node, node1Position: cc.Vec3, node2Position: cc.Vec3)
+    private moveNodeToPosition(target: cc.Node, position: cc.Vec3, duration: number) : Promise<unknown>
     {
-        node1.runAction(cc.moveTo(0.1, node2.getPosition()));
-        node2.runAction(cc.moveTo(0.1, node1.getPosition()));
-
-        //let temp = node1;
-        //this.grid[(node1Position.x + 300)/100][(node1Position.y + 300)/100] = node2;
-        //this.grid[(node2Position.x + 300)/100][(node2Position.y + 300)/100] = temp;
-    }
-
-    private moveNode(node1: cc.Node, node2: cc.Node)
-    {
-        node1.runAction(cc.moveTo(0.1, node2.getPosition()));
+        return new Promise(resolve =>
+        {
+            cc.tween(target)
+                .to(duration, { position: position })
+                .call(() => resolve(null))
+                .start();
+        });
     }
 
     private getRandomInt(min, max) {
@@ -463,5 +461,10 @@ export default class BoardManager extends cc.Component {
     public InfoBox(): void
     {
         window.alert("I Love Fruits");
+    }
+
+    private calculateScore(matchedTiles)
+    {
+
     }
 }
