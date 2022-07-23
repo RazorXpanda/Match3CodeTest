@@ -30,6 +30,21 @@ export default class BoardManager extends cc.Component {
     @property (cc.Label)
     scoreLabel: cc.Label;
 
+    @property (cc.AudioClip)
+    matchClip: cc.AudioClip = null;
+
+    @property (cc.AudioClip)
+    buttonSound: cc.AudioClip = null;
+
+    @property (cc.AudioClip)
+    wooshInSound: cc.AudioClip = null;
+
+    @property (cc.AudioClip)
+    wooshOutSound: cc.AudioClip = null;
+
+    @property (cc.AudioSource)
+    audioSource: cc.AudioSource = null;
+
     public grid: cc.Node[][] = [];
 
     private _score: number = 0;    
@@ -44,12 +59,16 @@ export default class BoardManager extends cc.Component {
 
     public set score(value: number)
     {
-        this._score = value;
+        if (value == 0)
+        {
+            this._score = 0
+            this.scoreLabel.string = this._score.toString();
+            return;
+        }
+        this._score += value * 100;
         this.scoreLabel.string = this._score.toString();
     }
     
-
-
     // Singleton (I know its bad but i dont have time uwu)
     private static instance: BoardManager;
 
@@ -64,6 +83,7 @@ export default class BoardManager extends cc.Component {
 
     onLoad()
     {
+        //cheat code
         cc.systemEvent.on(cc.SystemEvent.EventType.KEY_DOWN, this.onKeyDown, this);
         BoardManager.instance = this;
         this.grid = [...Array(this.gridDimension)].map(e => Array(this.gridDimension));
@@ -75,19 +95,11 @@ export default class BoardManager extends cc.Component {
         switch(event.keyCode) {
             case cc.macro.KEY.e:
                 console.log('Press e key');
-                this.CheatCode();
+                //this.CheatCode();
                 break;
         }
     }
 
-    private CheatCode()
-    {
-        this.grid[0][0].getComponent(cc.Sprite).spriteFrame = this.sprites[4]
-        this.grid[0][1].getComponent(cc.Sprite).spriteFrame = this.sprites[4]
-        this.grid[0][2].getComponent(cc.Sprite).spriteFrame = this.sprites[4]
-        this.grid[0][4].getComponent(cc.Sprite).spriteFrame = this.sprites[4]
-        //this.grid[3][2].getComponent(cc.Sprite).spriteFrame = this.sprites[4]
-    }
 
     protected InitGrid()
     {
@@ -196,9 +208,9 @@ export default class BoardManager extends cc.Component {
                     gridArray_temp.push([column, row])
                     gridArray = gridArray_temp
 
-                    this.score += 1;
                     tempArray = [];
                     gridArray_temp = [];
+                    this.PlaySound(this.matchClip)
                 }
 
                 let verticalMatches: Array<cc.Node> = this.FindRowMatchForTile(column, row, current.getComponent(cc.Sprite).spriteFrame);
@@ -213,18 +225,16 @@ export default class BoardManager extends cc.Component {
                     gridArray_temp.push([column, row])
                     gridArray = gridArray_temp
                     
-                    this.score += 1;
                     tempArray = [];
                     gridArray_temp = [];
+                    this.PlaySound(this.matchClip)
                 }
             }
         }
-        //cc.log(matchedTiles)
-        
-        matchedTiles.forEach(function (item)
+
+        matchedTiles.forEach(function(item)
         {
             item.destroy();
-            //item.getComponent(cc.Sprite).spriteFrame = null;
         })
 
         for (let counter = 0; counter < gridArray.length; counter++)
@@ -234,6 +244,8 @@ export default class BoardManager extends cc.Component {
 
             this.grid[column][row] = null
         }
+
+        this.calculateScore();
 
         return matchedTiles.length > 0;
     }
@@ -392,12 +404,13 @@ export default class BoardManager extends cc.Component {
             .all([
                 this.moveNodeToPosition(selectedNode, cc.v3(thisNode.position), 0.1),
                 this.moveNodeToPosition(thisNode, cc.v3(selectedNode.position), 0.1),
+                this.PlaySound(this.wooshOutSound),
                 this.grid[xThis][yThis] = selectedNode,
                 this.grid[xSelected][ySelected] = thisNode
             ])
             //Delays by 1 second
             .then(await new Promise(f => setTimeout(f, 1000)))
-
+            
         let changesOccurs: boolean = this.CheckMatch();   
         if(!changesOccurs)
         {
@@ -408,6 +421,7 @@ export default class BoardManager extends cc.Component {
             .all([
                 this.moveNodeToPosition(thisNode, cc.v3(selectedNode.position), 0.1),
                 this.moveNodeToPosition(selectedNode, cc.v3(thisNode.position), 0.1),
+                this.PlaySound(this.wooshInSound),
                 this.grid[xSelected][ySelected] = selectedNodeSwitched,
                 this.grid[xThis][yThis] = thisNodeSwitched
             ])
@@ -460,11 +474,33 @@ export default class BoardManager extends cc.Component {
 
     public InfoBox(): void
     {
+        this.uiSound();
         window.alert("I Love Fruits");
     }
 
-    private calculateScore(matchedTiles)
+    private calculateScore()
     {
+        for(let col = 0; col < this.gridDimension; col++)
+        {
+            for(let row = 0; row < this.gridDimension; row++)
+            {
+                if (this.grid[col][row] == null)
+                {
+                    this.score = 1;
+                }
+            }
+        }
+    }
 
+    private PlaySound(clip: cc.AudioClip)
+    {
+        this.audioSource.clip = clip;
+        this.audioSource.play()
+    }
+
+    private uiSound()
+    {
+        this.audioSource.clip = this.buttonSound;
+        this.audioSource.play()
     }
 }
