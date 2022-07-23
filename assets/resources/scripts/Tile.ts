@@ -12,7 +12,11 @@ export default class Tile extends cc.Component {
     
     onLoad()
     {
-        this.node.on(cc.Node.EventType.MOUSE_DOWN, this._touchTile, this);
+        this.node.on(cc.Node.EventType.TOUCH_START, this._touchTile, this);
+    }
+
+    protected onDestroy(): void {
+        this.node.off(cc.Node.EventType.TOUCH_END);
     }
     
     start()
@@ -35,11 +39,10 @@ export default class Tile extends cc.Component {
     private GetDistance(tile1Pos: cc.Vec3, tile2Pos: cc.Vec3, tolerance: Number)
     {
         return Math.abs((tile1Pos.x - tile2Pos.x) + (tile1Pos.y - tile2Pos.y)) == tolerance ? true : false;
-    }
+    }    
 
     private _touchTile(event?: cc.Event.EventTouch)
     {
-        cc.log(BoardManager.Instance.distance);
         //not used for now
         const touchpoint = new cc.Vec2(event.getLocationX(), event.getLocationY());
 
